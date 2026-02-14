@@ -2,16 +2,28 @@ plugins {
     id 'com.android.library'
     id 'com.chaquo.python'
 }
+def getPythonPath() {
+    def pythonPath = System.getenv("PYTHON_PATH")
+    if (pythonPath != null && !pythonPath.isEmpty()) {
+        return pythonPath
+    }
+    def userHome = System.getProperty("user.home")
+    def pythonExe = "${userHome}/AppData/Local/Programs/Python/Python38/python.exe"
+    if (new File(pythonExe).exists()) {
+        return pythonExe.replace("\\", "/")
+    }
+    return "python"
+}
 
 android {
     compileSdk 34
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 28
+        targetSdkVersion 34
 
         python {
-            buildPython("D:/Programs/Python/Python38/python.exe")
+            buildPython(getPythonPath())
             pip {
                 install "lxml"
                 install "ujson"
@@ -28,13 +40,6 @@ android {
     flavorDimensions "abi"
 
     productFlavors {
-        armeabi {
-            dimension = "abi"
-            ndk {
-                abiFilters 'armeabi-v7a'
-            }
-        }
-
         arm64 {
             dimension = "abi"
             ndk {

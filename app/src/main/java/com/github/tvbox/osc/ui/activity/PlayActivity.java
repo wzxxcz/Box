@@ -671,30 +671,6 @@ public class PlayActivity extends BaseActivity {
         }
     }
 
-    private boolean yxdm(String url, Map<String, String> headers) {
-        if (url.startsWith("https://www.ziyuantt.com/") && url.endsWith(".mp4")) {
-            int st = url.indexOf("&url=");
-            if (st > 1) {
-                String[] urls = url.substring(st + 5).split("\\|");
-                if (urls.length < 2) return false;
-                stopLoadWebView(false);
-                videoSegmentationURL.clear();
-                videoSegmentationURL.addAll(Arrays.asList(urls));
-                HashMap<String, String> hm = new HashMap<>();
-                if (headers != null && headers.keySet().size() > 0) {
-                    for (String k : headers.keySet()) {
-                        hm.put(k, " " + headers.get(k));
-                    }
-                }
-                loadFoundVideoUrls.add(urls[0]);
-                loadFoundVideoUrlsHeader.put(videoSegmentationURL.get(0), hm);
-                startPlayUrl(videoSegmentationURL.get(0), hm);
-                return true;
-            }
-        }
-        return false;
-    }
-
     void playUrl(String url, HashMap<String, String> headers) {
         if (!Hawk.get(HawkConfig.VIDEO_PURIFY, true)) {
             startPlayUrl(url, headers);
@@ -1034,7 +1010,7 @@ public class PlayActivity extends BaseActivity {
                         }
                     }
                     if (parse || jx) {
-                        boolean userJxList = (playUrl.isEmpty() && ApiConfig.get().getVipParseFlags().contains(flag)) || jx;
+                        boolean userJxList = (playUrl.isEmpty() && ApiConfig.get().containsFlag(flag)) || jx;
                         initParse(flag, userJxList, playUrl, url);
                     } else {
                         mController.showParse(false);
@@ -1406,8 +1382,6 @@ public class PlayActivity extends BaseActivity {
         String playTitleInfo = mVodInfo.name + " : " + vs.name;
         setTip("正在获取播放信息", true, false);
         mController.setTitle(playTitleInfo);
-        RemoteServer.vodName = mVodInfo.name;
-        RemoteServer.artist = vs.name;
 
         stopParse();
         initParseLoadFound();
@@ -1482,7 +1456,7 @@ public class PlayActivity extends BaseActivity {
     private Map<String, String> webHeaderMap;
 
     private void initParse(String flag, boolean useParse, String playUrl, final String url) {
-        parseFlag = flag;
+        parseFlag = flag.trim().toLowerCase();
         webUrl = url;
         ParseBean parseBean = null;
         mController.showParse(useParse);
@@ -2122,7 +2096,6 @@ public class PlayActivity extends BaseActivity {
             }
 
             if (!ad) {
-                if (yxdm(url, headers)) return null;
                 if (checkVideoFormat(url)) {
                     loadFoundVideoUrls.add(url);
                     loadFoundVideoUrlsHeader.put(url, headers);

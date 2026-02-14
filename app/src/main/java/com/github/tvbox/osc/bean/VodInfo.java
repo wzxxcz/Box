@@ -57,6 +57,8 @@ public class VodInfo implements Serializable {
     public String sourceKey;
     public String playerCfg = "";
     public boolean reverseSort = false;
+    public int playEpisodeIndex = 0;
+    public String playEpisodeName = "";
 
     public void setVideo(Movie.Video video) {
         last = video.last;
@@ -136,6 +138,46 @@ public class VodInfo implements Serializable {
     
     public int getplayIndex() {
         return this.playGroup * this.playGroupCount + this.playIndex;
+    }
+
+    public void updatePlayPositionFromEpisodeIndex() {
+        if (seriesMap == null || playFlag == null || !seriesMap.containsKey(playFlag)) {
+            return;
+        }
+        List<VodSeries> seriesList = seriesMap.get(playFlag);
+        if (seriesList == null || seriesList.isEmpty()) {
+            return;
+        }
+        if (playEpisodeIndex >= 0 && playEpisodeIndex < seriesList.size()) {
+            playGroup = playEpisodeIndex / Math.max(playGroupCount, 1);
+            playIndex = playEpisodeIndex % Math.max(playGroupCount, 1);
+        }
+    }
+
+    public int findEpisodeIndexByName(String episodeName) {
+        if (seriesMap == null || playFlag == null || !seriesMap.containsKey(playFlag) || episodeName == null) {
+            return -1;
+        }
+        List<VodSeries> seriesList = seriesMap.get(playFlag);
+        if (seriesList == null) {
+            return -1;
+        }
+        for (int i = 0; i < seriesList.size(); i++) {
+            if (episodeName.equals(seriesList.get(i).name)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public void saveCurrentEpisodeInfo() {
+        playEpisodeIndex = getplayIndex();
+        if (seriesMap != null && playFlag != null && seriesMap.containsKey(playFlag)) {
+            List<VodSeries> seriesList = seriesMap.get(playFlag);
+            if (seriesList != null && playEpisodeIndex >= 0 && playEpisodeIndex < seriesList.size()) {
+                playEpisodeName = seriesList.get(playEpisodeIndex).name;
+            }
+        }
     }
     
     public static class VodSeriesFlag implements Serializable {

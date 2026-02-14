@@ -816,6 +816,20 @@ public class ApiConfig {
         return vipParseFlags;
     }
 
+    public boolean containsFlag(String flag) {
+        if (vipParseFlags == null || vipParseFlags.isEmpty()) {
+            return false;
+        }
+        String normalizedFlag = flag.trim().toLowerCase();
+        for (String vipFlag : vipParseFlags) {
+            String processedFlag = vipFlag.trim().toLowerCase();
+            if (normalizedFlag.contains(processedFlag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public SourceBean getHomeSourceBean() {
         return mHomeSource == null ? emptyHome : mHomeSource;
     }

@@ -556,6 +556,14 @@ public class SearchActivity extends BaseActivity {
                 }
             }
         });
+        
+        for (int i = 0; i < tv_history.getChildCount(); i++) {
+            View child = tv_history.getChildAt(i);
+            if (child != null) {
+                child.setFocusable(true);
+                child.setFocusableInTouchMode(false);
+            }
+        }
     }
 
     private void initViewModel() {

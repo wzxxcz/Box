@@ -266,9 +266,16 @@ public class HomeActivity extends BaseActivity {
                 FileUtils.recursiveDelete(dir);
                 Toast.makeText(HomeActivity.this, getString(R.string.hm_cache_del), Toast.LENGTH_SHORT).show();
                 if(dataInitOk && jarInitOk){
+                    SourceBean homeSource = ApiConfig.get().getHomeSourceBean();
+                    if (homeSource == null) {
+                        return;
+                    }
                     String cspCachePath = FileUtils.getFilePath()+"/csp/";
-                    String jar=ApiConfig.get().getHomeSourceBean().getJar();
-                    String jarUrl=!jar.isEmpty()?jar:ApiConfig.get().getSpider();
+                    String jar = homeSource.getJar();
+                    String jarUrl = (jar != null && !jar.isEmpty()) ? jar : ApiConfig.get().getSpider();
+                    if (jarUrl == null || jarUrl.isEmpty()) {
+                        return;
+                    }
                     File cspCacheDir = new File(cspCachePath + MD5.string2MD5(jarUrl)+".jar");
                     if (!cspCacheDir.exists()){
                         reloadHome();
@@ -319,11 +326,13 @@ public class HomeActivity extends BaseActivity {
                     if (Hawk.get(HawkConfig.HOME_REC_STYLE, false)) {
                         UserFragment.tvHotListForGrid.setVisibility(View.VISIBLE);
                         UserFragment.tvHotListForLine.setVisibility(View.GONE);
+                        UserFragment.updateUserHomeVisibility();
                         Toast.makeText(HomeActivity.this, getString(R.string.hm_style_grid), Toast.LENGTH_SHORT).show();
                         tvStyle.setImageResource(R.drawable.hm_up_down);
                     } else {
                         UserFragment.tvHotListForGrid.setVisibility(View.GONE);
                         UserFragment.tvHotListForLine.setVisibility(View.VISIBLE);
+                        UserFragment.setUserHomeVisibility(View.VISIBLE);
                         Toast.makeText(HomeActivity.this, getString(R.string.hm_style_line), Toast.LENGTH_SHORT).show();
                         tvStyle.setImageResource(R.drawable.hm_left_right);
                     }
@@ -411,6 +420,8 @@ public class HomeActivity extends BaseActivity {
 
     private boolean dataInitOk = false;
     private boolean jarInitOk = false;
+    private TipDialog mErrorDialog = null;
+    private boolean mFromSettings = false;
 
     // takagen99 : Switch to show / hide source title
     boolean HomeShow = Hawk.get(HawkConfig.HOME_SHOW_SOURCE, false);
@@ -501,8 +512,6 @@ public class HomeActivity extends BaseActivity {
             return;
         }
         ApiConfig.get().loadConfig(useCacheConfig, new ApiConfig.LoadConfigCallback() {
-            TipDialog dialog = null;
-
             @Override
             public void retry() {
                 mHandler.post(new Runnable() {
@@ -543,47 +552,51 @@ public class HomeActivity extends BaseActivity {
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        if (dialog == null)
-                            dialog = new TipDialog(HomeActivity.this, msg, getString(R.string.hm_retry), getString(R.string.hm_cancel), new TipDialog.OnListener() {
-                                @Override
-                                public void left() {
-                                    mHandler.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            initData();
-                                            dialog.hide();
+                        if (mErrorDialog != null && mErrorDialog.isShowing()) {
+                            mErrorDialog.dismiss();
+                        }
+                        mErrorDialog = new TipDialog(HomeActivity.this, msg, getString(R.string.hm_setting), getString(R.string.hm_cancel), new TipDialog.OnListener() {
+                            @Override
+                            public void left() {
+                                mHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (mErrorDialog != null && mErrorDialog.isShowing()) {
+                                            mErrorDialog.dismiss();
                                         }
-                                    });
-                                }
+                                        mFromSettings = true;
+                                        jumpActivity(SettingActivity.class);
+                                    }
+                                });
+                            }
 
-                                @Override
-                                public void right() {
-                                    dataInitOk = true;
-                                    jarInitOk = true;
-                                    mHandler.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            initData();
-                                            dialog.hide();
+                            @Override
+                            public void right() {
+                                mHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (mErrorDialog != null && mErrorDialog.isShowing()) {
+                                            mErrorDialog.dismiss();
                                         }
-                                    });
-                                }
+                                        refreshEmpty();
+                                    }
+                                });
+                            }
 
-                                @Override
-                                public void cancel() {
-                                    dataInitOk = true;
-                                    jarInitOk = true;
-                                    mHandler.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            initData();
-                                            dialog.hide();
+                            @Override
+                            public void cancel() {
+                                mHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (mErrorDialog != null && mErrorDialog.isShowing()) {
+                                            mErrorDialog.dismiss();
                                         }
-                                    });
-                                }
-                            });
-                        if (!dialog.isShowing())
-                            dialog.show();
+                                        refreshEmpty();
+                                    }
+                                });
+                            }
+                        });
+                        mErrorDialog.show();
                     }
                 });
             }
@@ -671,8 +684,10 @@ public class HomeActivity extends BaseActivity {
             EventBus.getDefault().unregister(this);
             ControlManager.get().stopServer();
             finish();
-            android.os.Process.killProcess(android.os.Process.myPid());
-            System.exit(0);
+            mHandler.postDelayed(() -> {
+                android.os.Process.killProcess(android.os.Process.myPid());
+                System.exit(0);
+            }, 300);
         } else {
             // 否则仅提示用户，再按一次退出应用
             mExitTime = System.currentTimeMillis();
@@ -683,6 +698,13 @@ public class HomeActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (mFromSettings) {
+            mFromSettings = false;
+            String apiUrl = Hawk.get(HawkConfig.API_URL, "");
+            if (apiUrl.isEmpty()) {
+                initData();
+            }
+        }
 
         // takagen99 : Switch to show / hide source title
         SourceBean home = ApiConfig.get().getHomeSourceBean();

@@ -638,6 +638,14 @@ public class PlayFragment extends BaseLazyFragment {
         mPlayLoadErr.setVisibility(View.GONE);
     }
 
+    public boolean isReadyToPlay() {
+        return mPlayLoadTip.getVisibility() == View.GONE && 
+               mPlayLoading.getVisibility() == View.GONE && 
+               mPlayLoadErr.getVisibility() == View.GONE &&
+               mVideoView != null && 
+               mVideoView.isPlaying();
+    }
+
     void errorWithRetry(String err, boolean finish) {
         if (!autoRetry()) {
             if (!isAdded()) return;
@@ -652,30 +660,6 @@ public class PlayFragment extends BaseLazyFragment {
                 }
             });
         }
-    }
-
-    private boolean yxdm(String url, Map<String, String> headers) {
-        if (url.startsWith("https://www.ziyuantt.com/") && url.endsWith(".mp4")) {
-            int st = url.indexOf("&url=");
-            if (st > 1) {
-                String [] urls = url.substring(st + 5).split("\\|");
-                if (urls.length < 2) return false;
-                stopLoadWebView(false);
-                videoSegmentationURL.clear();
-                videoSegmentationURL.addAll(Arrays.asList(urls));
-                HashMap<String, String> hm = new HashMap<>();
-                if (headers != null && headers.keySet().size() > 0) {
-                    for (String k : headers.keySet()) {
-                        hm.put(k, " " + headers.get(k));
-                    }
-                }
-                loadFoundVideoUrls.add(urls[0]);
-                loadFoundVideoUrlsHeader.put(videoSegmentationURL.get(0), hm);
-                startPlayUrl(videoSegmentationURL.get(0), hm);
-                return true;
-            }
-        }
-        return false;
     }
 
     void playUrl(String url, HashMap<String, String> headers) {
@@ -958,7 +942,7 @@ public class PlayFragment extends BaseLazyFragment {
                     progressKey = info.optString("proKey", null);
                     boolean parse = info.optString("parse", "1").equals("1");
                     boolean jx = info.optString("jx", "0").equals("1");
-                    playSubtitle = info.optString("subt", /*"https://dash.akamaized.net/akamai/test/caption_test/ElephantsDream/ElephantsDream_en.vtt"*/"");
+                    playSubtitle = info.optString("subt", "");
                     if (playSubtitle.isEmpty() && info.has("subs")) {
                         try {
                             JSONObject obj = info.getJSONArray("subs").optJSONObject(0);
@@ -1057,6 +1041,15 @@ public class PlayFragment extends BaseLazyFragment {
         sourceBean = ApiConfig.get().getSource(sourceKey);
         initPlayerCfg();
         play(false);
+    }
+    
+    public void updateVodInfo(VodInfo vodInfo) {
+        if (mVodInfo != null) {
+            mVodInfo.playEpisodeIndex = vodInfo.playEpisodeIndex;
+            mVodInfo.playIndex = vodInfo.playIndex;
+            mVodInfo.playGroup = vodInfo.playGroup;
+            mVodInfo.reverseSort = vodInfo.reverseSort;
+        }
     }
 
     private void initData() {
@@ -1290,13 +1283,23 @@ public class PlayFragment extends BaseLazyFragment {
     public void play(boolean reset) {
     	if (mVodInfo == null) return;
         VodInfo.VodSeries vs = mVodInfo.seriesMap.get(mVodInfo.playFlag).get(mVodInfo.getplayIndex());
+        // 检查 URL 是否符合要求
+        if (vs.url == null || vs.url.trim().isEmpty()) {
+            stopParse();
+            setTip("视频源地址错误", false, true);
+            return;
+        }
+        String trimmedUrl = vs.url.trim();
+        if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+            stopParse();
+            setTip("视频源地址错误", false, true);
+            return;
+        }
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_REFRESH, mVodInfo.getplayIndex()));
         EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_REFRESH_NOTIFY, mVodInfo.name + "&&" + vs.name));
         String playTitleInfo = mVodInfo.name + " : " + vs.name;
         setTip("正在获取播放信息", true, false);
         mController.setTitle(playTitleInfo);
-        RemoteServer.vodName = mVodInfo.name;
-        RemoteServer.artist = vs.name;
 
         stopParse();
         initParseLoadFound();
@@ -1514,16 +1517,14 @@ public class PlayFragment extends BaseLazyFragment {
                                 playUrl(rs.getString("url"), headers);
                             } catch (Throwable e) {
                                 e.printStackTrace();
-                                errorWithRetry("解析错误", false);
-//                                setTip("解析错误", false, true);
+                                errorWithRetry("服务器已响应但解析错误", false);
                             }
                         }
 
                         @Override
                         public void onError(Response<String> response) {
                             super.onError(response);
-                            errorWithRetry("解析错误", false);
-//                            setTip("解析错误", false, true);
+                            errorWithRetry("解析错误：服务器未响应" + response.getException().getMessage(), false);
                         }
                     });
         } else if (pb.getType() == 2) { // json 扩展
@@ -1610,7 +1611,7 @@ public class PlayFragment extends BaseLazyFragment {
                     //并发执行 嗅探和json
                     JSONObject rs = SuperParse.parse(jxs, parseFlag+"123", webUrl);
                     if (!rs.has("url") || rs.optString("url").isEmpty()) {
-                        setTip("解析错误", false, true);
+                        setTip("解析错误（超级）", false, true);
                     } else {
                         if (rs.has("parse") && rs.optInt("parse", 0) == 1) {
                             if (rs.has("ua")) {
@@ -1644,7 +1645,7 @@ public class PlayFragment extends BaseLazyFragment {
                     JSONObject rs = ApiConfig.get().jsonExtMix(parseFlag + "111", pb.getUrl(), finalExtendName, jxs, webUrl);
                     if (rs == null || !rs.has("url") || rs.optString("url").isEmpty()) {
 //                        errorWithRetry("解析错误", false);
-                        setTip("解析错误", false, true);
+                        setTip("解析错误（常规）", false, true);
                     } else {
                         if (rs.has("parse") && rs.optInt("parse", 0) == 1) {
                             if (rs.has("ua")) {
@@ -2012,7 +2013,6 @@ public class PlayFragment extends BaseLazyFragment {
             }
 
             if (!ad) {
-                if (yxdm(url, headers)) return null;
                 if (checkVideoFormat(url)) {
                     loadFoundVideoUrls.add(url);
                     loadFoundVideoUrlsHeader.put(url, headers);

@@ -7,6 +7,9 @@ import android.view.animation.BounceInterpolator;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.api.ApiConfig;
@@ -53,10 +56,12 @@ public class UserFragment extends BaseLazyFragment implements View.OnClickListen
     private LinearLayout tvHistory;
     private LinearLayout tvCollect;
     private LinearLayout tvPush;
+    private static LinearLayout tvUserHome;
     public static HomeHotVodAdapter homeHotVodAdapter;
     private List<Movie.Video> homeSourceRec;
     public static TvRecyclerView tvHotListForGrid;
     public static TvRecyclerView tvHotListForLine;
+    private static boolean isUserHomeVisible = true;
 
     public static UserFragment newInstance() {
         return new UserFragment();
@@ -119,6 +124,7 @@ public class UserFragment extends BaseLazyFragment implements View.OnClickListen
         tvCollect = findViewById(R.id.tvFavorite);
         tvHistory = findViewById(R.id.tvHistory);
         tvPush = findViewById(R.id.tvPush);
+        tvUserHome = findViewById(R.id.tvUserHome);
         tvDrive.setOnClickListener(this);
         tvLive.setOnClickListener(this);
         tvSearch.setOnClickListener(this);
@@ -231,6 +237,39 @@ public class UserFragment extends BaseLazyFragment implements View.OnClickListen
             @Override
             public void onItemClick(TvRecyclerView parent, View itemView, int position) {
 
+            }
+        });
+        tvHotListForGrid.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                
+                boolean canScrollUp = !tvHotListForGrid.canScrollVertically(-1);
+                
+                if (dy > 0) {
+                    if (isUserHomeVisible) {
+                        tvUserHome.setVisibility(View.GONE);
+                        isUserHomeVisible = false;
+                    }
+                } else if (dy < 0 && !canScrollUp) {
+                    if (isUserHomeVisible) {
+                        tvUserHome.setVisibility(View.GONE);
+                        isUserHomeVisible = false;
+                    }
+                }
+            }
+            
+            @Override
+            public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
+                super.onScrollStateChanged(recyclerView, newState);
+                
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    boolean canScrollUp = !tvHotListForGrid.canScrollVertically(-1);
+                    if (canScrollUp && !isUserHomeVisible) {
+                        tvUserHome.setVisibility(View.VISIBLE);
+                        isUserHomeVisible = true;
+                    }
+                }
             }
         });
         tvHotListForGrid.setAdapter(homeHotVodAdapter);
@@ -377,5 +416,24 @@ public class UserFragment extends BaseLazyFragment implements View.OnClickListen
     public void onDestroy() {
         super.onDestroy();
         EventBus.getDefault().unregister(this);
+    }
+
+    public static void setUserHomeVisibility(int visibility) {
+        if (tvUserHome != null) {
+            tvUserHome.setVisibility(visibility);
+        }
+    }
+
+    public static void updateUserHomeVisibility() {
+        if (tvUserHome != null && tvHotListForGrid != null) {
+            boolean canScrollUp = !tvHotListForGrid.canScrollVertically(-1);
+            if (canScrollUp) {
+                tvUserHome.setVisibility(View.VISIBLE);
+                isUserHomeVisible = true;
+            } else {
+                tvUserHome.setVisibility(View.GONE);
+                isUserHomeVisible = false;
+            }
+        }
     }
 }
